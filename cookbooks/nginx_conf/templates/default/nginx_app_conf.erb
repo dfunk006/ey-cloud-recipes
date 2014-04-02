@@ -1,4 +1,4 @@
-# Built with Chef
+# Built with Chef recipe nginx_conf
 
 upstream upstream_bfwa {
     server unix:/var/run/engineyard/php-fpm_bfwa.sock;
@@ -36,7 +36,7 @@ server {
 	include /etc/nginx/servers/bfwa/additional_location_blocks.customer;
 
     location / {
-        try_files $uri $uri/ /index.php$is_args$args;
+        try_files $uri $uri/ /index.php?it=$uri&$args;
     }
 
     location ~ \.php$ {
