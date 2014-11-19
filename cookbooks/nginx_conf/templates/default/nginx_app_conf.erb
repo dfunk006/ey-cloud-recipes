@@ -1,4 +1,6 @@
 # Built with Chef recipe nginx_conf
+# @version 2.5
+# @indexVersion 250
 
 upstream upstream_bfwa {
     server unix:/var/run/engineyard/php-fpm_bfwa.sock;
@@ -35,9 +37,87 @@ server {
 	# Include additional location blocks.  File copied in via deploy hooks
 	include /etc/nginx/servers/bfwa/additional_location_blocks.customer;
 
+    # -----------------------------------------------------------------------------------------------
+    # Access Restrictions: Protect ProcessWire system files
+    # -----------------------------------------------------------------------------------------------
+
+    # Block access to ProcessWire system files
+    location ~ \.(inc|info|module|sh|sql)$ {
+        deny all;
+    }
+
+    # Block access to any file or directory that begins with a period
+    location ~ /\. {
+        deny all;
+    }
+
+    # Block access to protected assets directories
+    location ~ ^/(site|site-[^/]+)/assets/(cache|logs|backups|sessions|config|install|tmp)($|/.*$) {
+        deny all;
+    }
+
+    # Block acceess to the /site/install/ directory
+    location ~ ^/(site|site-[^/]+)/install($|/.*$) {
+        deny all;
+    }
+
+    # Block dirs in /site/assets/ dirs that start with a hyphen
+    location ~ ^/(site|site-[^/]+)/assets.*/-.+/.* {
+        deny all;
+    }
+
+    # Block access to /wire/config.php, /site/config.php, /site/config-dev.php, and /wire/index.config.php
+    location ~ ^/(wire|site|site-[^/]+)/(config|index\.config|config-dev)\.php$ {
+        deny all;
+    }
+
+    # Block access to any PHP-based files in /templates-admin/
+    location ~ ^/(wire|site|site-[^/]+)/templates-admin($|/|/.*\.(php|html?|tpl|inc))$ {
+        deny all;
+    }
+
+    # Block access to any PHP or markup files in /site/templates/
+    location ~ ^/(site|site-[^/]+)/templates($|/|/.*\.(php|html?|tpl|inc))$ {
+        deny all;
+    }
+
+    # Block access to any PHP files in /site/assets/
+    location ~ ^/(site|site-[^/]+)/assets($|/|/.*\.php)$ {
+        deny all;
+    }
+
+    # Block access to any PHP files in core or core module directories
+    location ~ ^/wire/(core|modules)/.*\.(php|inc|tpl|module)$ {
+        deny all;
+    }
+
+    # Block access to any PHP files in /site/modules/
+    location ~ ^/(site|site-[^/]+)/modules/.*\.(php|inc|tpl|module)$ {
+        deny all;
+    }
+
+    # Block access to any software identifying txt files
+    location ~ ^/(COPYRIGHT|INSTALL|README|htaccess)\.(txt|md)$ {
+        deny all;
+    }
+
+    # Block all http access to the default/uninstalled site-default directory
+    location ~ ^/site-default/ {
+        deny all;
+    }
+
+    # -----------------------------------------------------------------------------------------------
+    # This location processes all other requests. If the request is for a file or directory that
+    # physically exists on the server, then load the file. Else give control to ProcessWire.
+    # -----------------------------------------------------------------------------------------------
+
     location / {
         try_files $uri $uri/ /index.php?it=$uri&$args;
     }
+
+    # -----------------------------------------------------------------------------------------------
+    # Pass .php requests to fastcgi socket
+    # -----------------------------------------------------------------------------------------------
 
     location ~ \.php$ {
         try_files $uri =404;
@@ -50,6 +130,11 @@ server {
         fastcgi_param               SCRIPT_FILENAME $document_root$fastcgi_script_name;
         fastcgi_param               SERVER_NAME $hostname;
     }
+
+    # -----------------------------------------------------------------------------------------------
+    # If the request is for a static file, then set expires header and disable logging.
+    # Give control to ProcessWire if the requested file or directory is non-existing.
+    # -----------------------------------------------------------------------------------------------
 
     location ~* ^.+\.(jpg|js|jpeg|png|ico|gif|txt|js|css|swf|zip|rar|avi|exe|mpg|mp3|wav|mpeg|asf|wmv)$ {
         try_files $uri /index.php$is_args$args;
